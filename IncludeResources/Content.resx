@@ -1202,25 +1202,42 @@ using System.Diagnostics.CodeAnalysis;
         public static BlockReader Get(Stream stream, int fallbackCodePage)
         {
             Encoding encoding;
-            int preamble = Preamble(stream);
+            
+            if(stream.CanSeek) {
+                int preamble = Preamble(stream);
 
-            if (preamble != 0)  // There is a valid BOM here!
-                encoding = Encoding.GetEncoding(preamble);
-            else if (fallbackCodePage == -1) // Fallback is "raw" bytes
-                return Raw(stream);
-            else if (fallbackCodePage != -2) // Anything but "guess"
-                encoding = Encoding.GetEncoding(fallbackCodePage);
-            else // This is the "guess" option
-            {
-                int guess = new Guesser(stream).GuessCodePage();
-                stream.Seek(0, SeekOrigin.Begin);
-                if (guess == -1) // ==&gt; this is a 7-bit file
-                    encoding = Encoding.ASCII;
-                else if (guess == 65001)
-                    encoding = Encoding.UTF8;
-                else             // ==&gt; use the machine default
-                    encoding = Encoding.Default;
+                if (preamble != 0)  // There is a valid BOM here!
+                    encoding = Encoding.GetEncoding(preamble);
+                else if (fallbackCodePage == -1) // Fallback is "raw" bytes
+                    return Raw(stream);
+                else // This is the "guess" option
+                {
+                    int guess = new Guesser(stream).GuessCodePage();
+                        
+                    stream.Seek(0, SeekOrigin.Begin);
+                    if (guess == -1) // ==&gt; this is a 7-bit file
+                        encoding = Encoding.ASCII;
+                    else if (guess == 65001)
+                        encoding = Encoding.UTF8;
+                    else if (fallbackCodePage != -2) // ==&gt; use the fallbackCodePage
+                        encoding = Encoding.GetEncoding(fallbackCodePage);
+                    else
+                        encoding = Encoding.Default;
+                }
+            } else {
+                switch(fallbackCodePage) {
+                    case -1:
+                        // Fallback is "raw" bytes
+                        return Raw(stream);
+                    case -2:
+                        encoding = Encoding.Default;
+                        break;
+                    default:
+                        encoding = Encoding.GetEncoding(fallbackCodePage);
+                        break;                 
+                }
             }
+            
             StreamReader reader = new StreamReader(stream, encoding);
             return reader.Read;
         }
